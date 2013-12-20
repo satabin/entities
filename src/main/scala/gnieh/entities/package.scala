@@ -9,6 +9,12 @@ package object entities {
     def add(component: Component)(implicit manager: EntityManager): entity.type =
       manager.addComponent(entity, component)
 
+    def remove(component: Component)(implicit manager: EntityManager): Unit =
+      manager.removeComponent(entity, component)
+
+    def remove[T <: Component: Manifest](implicit manager: EntityManager): Unit =
+      manager.removeComponentType[T](entity)
+
     def has[T <: Component: Manifest](implicit manager: EntityManager): Boolean =
       manager.hasComponentType[T](entity)
 
@@ -17,6 +23,9 @@ package object entities {
 
     def get[T <: Component: Manifest](implicit manager: EntityManager): Option[T] =
       manager.getComponent[T](entity)
+
+    def delete(implicit manager: EntityManager): Unit =
+      manager.deleteEntity(entity)
 
   }
 
