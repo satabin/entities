@@ -12,3 +12,9 @@ libraryDependencies +=
 libraryDependencies +=
   "org.scala-stm" %% "scala-stm" % "0.7"
 
+libraryDependencies +=
+  "org.scalatest" %% "scalatest" % "2.0" % "test"
+
+libraryDependencies +=
+  "com.typesafe.akka" %% "akka-testkit" % "2.2.3"
+
