@@ -37,7 +37,7 @@ abstract class Engine(tick: FiniteDuration) extends Actor {
       // standard tick event increments time
       chain(Process(Platform.currentTime, manager), systems)
 
-    case pub @ Publish(_, _) =>
+    case pub @ Publish(_, _, _) =>
       // broadcast to all child systems
       // this is not done in the synchronous part, hence time does not change
       context.actorSelection("system::*") ! pub

@@ -51,21 +51,21 @@ abstract class EntitySystem(val manager: EntityManager) extends Actor {
       // is much quicker
       sender ! false
 
-    case Publish(event, tag) if subscriptions.contains(tag) =>
+    case Publish(origin, event, tag) if subscriptions.contains(tag) =>
       // receive an event to which type we subscribed
       for(subscription <- subscriptions(tag))
         atomic { implicit txn =>
           // events are processed asynchronously and do not change last processing time.
           // however, they can interfer with the entities and are thus wrapped in a transaction
-          subscription(event, manager)
+          subscription(origin, event, manager)
         }
 
   }
 
-  def publish[T: ClassTag](event: T): Unit =
-    context.parent ! Publish(event, implicitly[ClassTag[T]])
+  def publish[T: ClassTag](origin: Entity, event: T): Unit =
+    context.parent ! Publish(origin, event, implicitly[ClassTag[T]])
 
-  def subscribe[T: ClassTag](react: T => EntityManager => Unit): Unit =
+  def subscribe[T: ClassTag](react: (Entity, T) => EntityManager => Unit): Unit =
     subscriptions.addBinding(implicitly[ClassTag[_]], new Subscription(react))
 
   def unsubscribe[T: ClassTag]: Unit =
@@ -81,9 +81,9 @@ abstract class EntitySystem(val manager: EntityManager) extends Actor {
 
 }
 
-private class Subscription[T: ClassTag](val handler: T => EntityManager => Unit) {
-  def apply(value: Any, manager: EntityManager): Unit = value match {
-    case v: T => handler(v)(manager)
+private class Subscription[T: ClassTag](val handler: (Entity, T) => EntityManager => Unit) {
+  def apply(origin: Entity, value: Any, manager: EntityManager): Unit = value match {
+    case v: T => handler(origin, v)(manager)
     case _    =>
   }
 }
