@@ -13,6 +13,13 @@ import scala.concurrent.stm._
 
 import scala.reflect._
 
+/** The `EntityManager` is responsible for creating, storing and deleting the entities
+ *  and associated components.
+ *  Components `T` stored in the manager may be mutable, that's why it is stored as `Ref[T]`
+ *  so that they can be managed by the stm library.
+ *
+ *  @author Lucas Satabin
+ */
 class EntityManager {
 
   private val _entities =
@@ -25,7 +32,7 @@ class EntityManager {
     TMap.empty[String, TSet[Entity]]
 
   private val components =
-    TMap.empty[Class[_ <: Component], TMap[Entity, TSet[Component]]]
+    TMap.empty[Class[_ <: Component], TMap[Entity, TSet[Ref[Component]]]]
 
   def createSimple(): Entity = atomic { implicit txn =>
     val id = UUID.randomUUID.toString
@@ -58,8 +65,8 @@ class EntityManager {
     val clazz = component.getClass
     val store = components.get(clazz).getOrElse(TMap.empty)
     store.get(entity) match {
-      case Some(components) => components += component
-      case None             => store(entity) = TSet(component)
+      case Some(components) => components += Ref(component)
+      case None             => store(entity) = TSet(Ref(component))
     }
     if(!components.contains(clazz))
       components(clazz) = store
@@ -75,13 +82,13 @@ class EntityManager {
 
   def hasComponent(entity: Entity, component: Component): Boolean = atomic { implicit txn =>
     for(store <- components.get(component.getClass))
-      yield store.contains(entity) && store(entity).contains(component)
+      yield store.contains(entity) && store(entity).contains(Ref(component))
   }.getOrElse(false)
 
-  def getComponent[T <: Component: ClassTag](entity: Entity): Option[T] = atomic { implicit txn =>
-    for(store <- components.get(implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[Component]]))
-      yield store(entity).headOption.collect { case t: T => t }
-  }.flatten
+  def getComponent[T <: Component: ClassTag](entity: Entity): Option[Ref[T]] = atomic { implicit txn =>
+    (for(store <- components.get(implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[Component]]))
+      yield store(entity).headOption.collect { case t => t.asInstanceOf[Ref[T]] }).flatten
+  }
 
   def removeComponentType[T <: Component: ClassTag](entity: Entity): Unit = atomic { implicit txn =>
     val clazz = implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[Component]]
