@@ -47,14 +47,14 @@ abstract class Engine(tick: FiniteDuration) extends Actor {
   def started(ticks: Cancellable): Receive = {
     case Tick =>
       // standard tick event increments time
-      chain(Process(Platform.currentTime, manager), systems)
+      chain(Process(Platform.currentTime), systems)
 
     case pub @ Publish(_, _, _) =>
       // broadcast to all child systems
       // this is not done in the synchronous part, hence time does not change
       context.actorSelection("system::*") ! pub
 
-    case Process(time, _) =>
+    case Process(time) =>
       // TODO better logging
       println(s"End of processing for timestamp $time")
 

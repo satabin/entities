@@ -42,9 +42,8 @@ abstract class EntitySystem(val manager: EntityManager) extends Actor {
     behavior(Platform.currentTime)
 
   def behavior(last: Long): Receive = {
-    case Process(time, manager) if last < time =>
+    case Process(time) if last < time =>
       // last processing was done in the past
-      context.become(behavior(time))
       atomic { implicit txn =>
         // the call to process is wrapped in an atomic block
         // because it uses a shared resource : the entity manager.
@@ -53,10 +52,11 @@ abstract class EntitySystem(val manager: EntityManager) extends Actor {
         // all modifications are either committed or discarded, we use stm
         process(time - last)
       }
+      context.become(behavior(time))
       // yes the message was processed
       sender ! true
 
-    case Process(_, _) =>
+    case Process(_) =>
       // processing time is in the past compared to the last registered time
       // just skip this tick, as we already processed something in the future
       // this can occur when a tick took particularly long to compute and the next one
@@ -69,7 +69,7 @@ abstract class EntitySystem(val manager: EntityManager) extends Actor {
         atomic { implicit txn =>
           // events are processed asynchronously and do not change last processing time.
           // however, they can interfer with the entities and are thus wrapped in a transaction
-          subscription(origin, event, manager)
+          subscription(origin, event, txn)
         }
 
   }
@@ -77,7 +77,7 @@ abstract class EntitySystem(val manager: EntityManager) extends Actor {
   def publish[T: ClassTag](origin: Entity, event: T): Unit =
     context.parent ! Publish(origin, event, implicitly[ClassTag[T]])
 
-  def subscribe[T: ClassTag](react: (Entity, T) => EntityManager => Unit): Unit =
+  def subscribe[T: ClassTag](react: (Entity, T) => InTxn => Unit): Unit =
     subscriptions.addBinding(implicitly[ClassTag[_]], new Subscription(react))
 
   def unsubscribe[T: ClassTag]: Unit =
@@ -93,9 +93,9 @@ abstract class EntitySystem(val manager: EntityManager) extends Actor {
 
 }
 
-private class Subscription[T: ClassTag](val handler: (Entity, T) => EntityManager => Unit) {
-  def apply(origin: Entity, value: Any, manager: EntityManager): Unit = value match {
-    case v: T => handler(origin, v)(manager)
+private class Subscription[T: ClassTag](val handler: (Entity, T) => InTxn => Unit) {
+  def apply(origin: Entity, value: Any, txn: InTxn): Unit = value match {
+    case v: T => handler(origin, v)(txn)
     case _    =>
   }
 }
